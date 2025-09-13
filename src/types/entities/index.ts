@@ -8,11 +8,14 @@ export type User = {
     age: number
     gender: number
     city_id: number
-    school: string
+    school_id: number
 }
 
 // CITIES ENTITIES
 export type City = HasId & HasName
+
+// SCHOOLS ENTITIES
+export type School = HasId & HasName
 
 // SURVEYS ENTITIES
 export type Survey = {

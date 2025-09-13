@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit'
 import { userReducer } from '../features/user/slices/userSlice'
 import { citiesReducer } from '../features/cities/slices/citiesSlice'
+import { schoolsReducer } from '../features/schools/slices/schoolsSlice'
 import { surveyReducer } from '../features/survey/slices/surveySlice'
 import { gameInfoReducer } from '../features/game/slices/game-info/gameInfoSlice'
 import { settingsReducer } from '../features/settings/slices/settingsSlice'
@@ -10,6 +11,7 @@ export const store = configureStore({
     reducer: {
         user: userReducer,
         cities: citiesReducer,
+        schools: schoolsReducer,
         survey: surveyReducer,
         game: gameInfoReducer,
         settings: settingsReducer,

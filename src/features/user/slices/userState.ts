@@ -13,7 +13,7 @@ const defaultUserData: User = {
     first_name: "",
     last_name: "",
     city_id: 0,
-    school: "",
+    school_id: 0,
     uuid: ""
 }
 
