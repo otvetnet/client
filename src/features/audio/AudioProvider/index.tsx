@@ -7,7 +7,7 @@ import React, {
     ReactNode,
 } from 'react';
 import { useAppSelector } from '../../../store/hooks';
-import { CONFIG } from '../../../config';
+import { CONFIG } from '../../../config'; // Убедитесь, что импорт работает
 
 export type AudioInstance = {
     id: string;
@@ -19,6 +19,7 @@ export type AudioInstance = {
     error: string | null;
 };
 
+// Тип контекста теперь снова простой, без параметра delay в play
 type AudioContextType = {
     play: (id: string) => void;
     pause: (id: string) => void;
@@ -79,9 +80,9 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
     initialTracks = {},
 }) => {
     const audioInstances = useRef<Record<string, AudioInstance>>({});
-    const { audio_muted } = useAppSelector(state => state.settings)
+    const { audio_muted, music_muted } = useAppSelector(state => state.settings)
 
-    const [_, forceUpdate] = useState({}); // Для принудительного ререндера
+    const [_, forceUpdate] = useState({});
 
     const handleError = (id: string, error: Event) => {
         const target = error.target as HTMLAudioElement;
@@ -91,7 +92,6 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
     };
 
     const loadTrack = (id: string, audioPath: string, loop?: boolean): AudioInstance => {
-        // Если инстанс уже существует, очищаем его
         if (audioInstances.current[id]) {
             audioInstances.current[id].audio.pause();
             audioInstances.current[id].audio.removeEventListener('error', (e) => handleError(id, e));
@@ -99,8 +99,12 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
 
         const audio = new Audio(audioPath);
         audio.loop = loop!
-        audio.volume = audioInstances.current[id]?.volume || 0.5;
 
+        const initialVolume = id === 'bg'
+            ? (music_muted ? 0 : CONFIG.AUDIO_BACKGROUND_VOLUME)
+            : (audio_muted ? 0 : CONFIG.AUDIO_DIALOG_VOLUME);
+
+        audio.volume = audioInstances.current[id]?.volume || initialVolume;
         audio.addEventListener('error', (e) => handleError(id, e));
 
         const newAudioInstance = {
@@ -109,7 +113,7 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
             ended: audio.ended,
             duration: audio.duration,
             isPlaying: false,
-            volume: !audio_muted ? audioInstances.current[id]?.volume || 0.5 : 0,
+            volume: audio.volume,
             error: null,
         }
 
@@ -117,33 +121,39 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
             ...audioInstances.current,
             [id]: newAudioInstance
         };
-        //console.log("загружен ", id);
 
         forceUpdate({});
-
         return newAudioInstance
     };
 
+    // --- ИЗМЕНЕНИЕ: Функция play теперь использует константу из CONFIG ---
     const play = (id: string) => {
         const instance = audioInstances.current[id];
-        console.log(audioInstances.current);
-
         if (!instance) {
             console.error(`Audio instance with id ${id} not found`);
             return;
         }
-        instance.audio.play()
-            .then(() => {
-                instance.isPlaying = true;
-                instance.error = null;
-                forceUpdate({});
-            })
-            .catch((err) => {
-                instance.error = `Playback failed: ${err instanceof Error ? err.message : String(err)}`;
-                instance.isPlaying = false;
-                forceUpdate({});
-            });
 
+        const playLogic = () => {
+            instance.audio.play()
+                .then(() => {
+                    instance.isPlaying = true;
+                    instance.error = null;
+                    forceUpdate({});
+                })
+                .catch((err) => {
+                    instance.error = `Playback failed: ${err instanceof Error ? err.message : String(err)}`;
+                    instance.isPlaying = false;
+                    forceUpdate({});
+                });
+        }
+
+        // Применяем задержку только для диалогов, а не для фоновой музыки (id: 'bg')
+        if (id !== 'bg' && CONFIG.SUBTITLES_AUDIO_DELAY > 0) {
+            setTimeout(playLogic, CONFIG.SUBTITLES_AUDIO_DELAY);
+        } else {
+            playLogic(); // Воспроизводим сразу
+        }
     };
 
     const pause = (id: string) => {
@@ -182,6 +192,7 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
         }
     };
 
+
     const getAudioState = (id: string) => {
         const instance = audioInstances.current[id];
         if (!instance) {
@@ -194,7 +205,6 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
                 currentTrack: null,
             };
         }
-
         return {
             isPlaying: instance.isPlaying,
             error: instance.error,
@@ -212,23 +222,25 @@ export const AudioProvider: React.FC<AudioProviderProps> = ({
     useEffect(() => {
         if (audioInstances.current) {
             Object.entries(audioInstances.current).forEach(([id]) => {
-                if (id == "bg") {
-                    setVolume(id, audio_muted ? 0 : CONFIG.AUDIO_BACKGROUND_VOLUME)
-                    return
+                if (id !== "bg") {
+                    setVolume(id, audio_muted ? 0 : CONFIG.AUDIO_DIALOG_VOLUME);
                 }
-                setVolume(id, audio_muted ? 0 : CONFIG.AUDIO_DIALOG_VOLUME);
             });
         }
+    }, [audio_muted]);
 
-    }, [audio_muted])
-    // Инициализация
     useEffect(() => {
-        // Загрузка начальных треков
-        Object.entries(initialTracks).forEach(([id, { path, volume = CONFIG.AUDIO_DIALOG_VOLUME }]) => {
-            loadTrack(id, path);
-            setVolume(id, volume);
-        });
+        if (audioInstances.current['bg']) {
+            const musicVolume = CONFIG.AUDIO_BACKGROUND_VOLUME || 0.3;
+            setVolume('bg', music_muted ? 0 : musicVolume);
+        }
+    }, [music_muted]);
 
+    useEffect(() => {
+        Object.entries(initialTracks).forEach(([id, { path, volume }]) => {
+            loadTrack(id, path);
+            if (volume) setVolume(id, volume);
+        });
         return deleteInstances
     }, []);
 

@@ -15,8 +15,10 @@ export type SendSurveyReq = {
     survey_id: number
     user_id: string
     answers: ResultAnswer[]
+    is_reflection?: boolean
 }
 
 export type SendSurveyRes = {
     suggested_game: number
+    lie_detected?: boolean
 }

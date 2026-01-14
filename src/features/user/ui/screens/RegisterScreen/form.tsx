@@ -4,6 +4,8 @@ import { Button } from '../../../../../ui/components/buttons/Button'
 import { FieldsGroup } from '../../../../../ui/components/forms/FieldsGroup'
 import { InputField } from '../../../../../ui/components/forms/InputField'
 import { SelectField } from '../../../../../ui/components/forms/SelectField'
+import { getSchools, resetSchoolPagination } from '../../../../schools/slices/schoolsSlice'
+import { GetSchoolsReq } from '../../../../../types/api/schools.api.types'
 import { tickIcon } from '../../../../../ui/icons'
 import { getSelectOptions } from '../../../../../utils/getSelectOptions'
 import { STATIC_DATA } from '../../../config'
@@ -14,23 +16,28 @@ import { getCities, resetPagination } from '../../../../cities/slices/citiesSlic
 import { generateKey } from '../../../utils/generateKey'
 import { userRegister } from '../../../slices/userSlice'
 
-type UserRegisterForm = Omit<UserRegisterReq, "password">
-type UserRegisterFormKeys = keyof UserRegisterForm
-type UserRegisterFormSelects = keyof Pick<UserRegisterForm, "age" | "city_id" | "gender">
+type UserRegisterForm = Omit<UserRegisterReq, "password">;
+type UserRegisterFormKeys = keyof UserRegisterForm;
+// type UserRegisterFormSelects = keyof Pick<UserRegisterForm, "age" | "city_id" | "school_id" | "gender">;
+type UserRegisterFormSelects = "age" | "city_id" | "gender" | "school";
 
 export const RegisterForm = () => {
     const dispatch = useAppDispatch()
-    const { cities, user } = useAppSelector(state => state)
+    const { schools, cities, user } = useAppSelector(state => state)
 
     const [agreeCheckbox, setAgreeCheckbox] = useState(true);
     const [searchCitiesValue, setSearchCitiesValue] = useState("");
+    const [searchSchoolsValue, setSearchSchoolsValue] = useState("");
     const defferedSearchCitiesValue = useDeferredValue(searchCitiesValue)
+    const defferedSearchSchoolsValue = useDeferredValue(searchSchoolsValue)
 
     const formik = useFormik<UserRegisterForm>({
         initialValues: {
             first_name: '',
             last_name: '',
+            middle_name: 'Отсутствует',
             school: '',
+            // school_id: 0,
             age: 0,
             gender: 0,
             city_id: 0
@@ -38,10 +45,11 @@ export const RegisterForm = () => {
         onSubmit: values => {
             const data: UserRegisterReq = {
                 ...values,
+                middle_name: 'Отсутствует',
                 password: generateKey(60)
-            }
-            console.log(data)
-            dispatch(userRegister(data))
+            };
+            console.log(data);
+            dispatch(userRegister(data));
         },
     });
 
@@ -64,8 +72,34 @@ export const RegisterForm = () => {
             setSearchCitiesValue(name)
         }
         registerFormSelect("city_id", city)
+        // reset schools pagination and items so we reload schools for selected city
+        dispatch(resetSchoolPagination())
     }
 
+    const fetchSchools = () => {
+        let currentSkip = 0
+
+        //if (schools.pagination.part > 1) {
+        //    currentSkip = (schools.pagination.part - 1) * schools.pagination.limit
+        //}
+
+        const req: GetSchoolsReq = {
+            skip: currentSkip,
+            limit: schools.pagination.limit,
+            query: searchSchoolsValue,
+            city_id: formik.values.city_id || undefined
+        }
+
+        dispatch(getSchools(req))
+    }
+
+    const onSchoolSelect = (_school: number, name: string) => {
+        if (name !== searchSchoolsValue) {
+            setSearchSchoolsValue(name)
+        }
+        // registerFormSelect("school_id", school)
+        registerFormSelect("school", name)
+    }
     const fieldsAreNotValid = useMemo(() => {
         return Object.keys(formik.values).some((key) => {
             const typedKey = key as UserRegisterFormKeys;
@@ -73,7 +107,7 @@ export const RegisterForm = () => {
         })
     }, [formik.values])
 
-    const registerFormSelect = (key: UserRegisterFormSelects, value: number) => {
+    const registerFormSelect = (key: UserRegisterFormSelects, value: any) => {
         formik.setValues((values) => {
             return { ...values, [key]: value }
         })
@@ -85,6 +119,11 @@ export const RegisterForm = () => {
         if (formik.values.city_id && !defferedSearchCitiesValue.length) {
             registerFormSelect("city_id", 0)
         }
+
+        // Если поиск очищен, подгружаем города
+        if (!defferedSearchCitiesValue.length) {
+            fetchCities();
+        }
     }, [defferedSearchCitiesValue])
 
     useEffect(() => {
@@ -93,6 +132,26 @@ export const RegisterForm = () => {
         }
 
     }, [cities.pagination.part])
+
+    // useEffect(() => {
+    //     dispatch(resetSchoolPagination())
+
+    //     if (formik.values.school_id && !defferedSearchSchoolsValue.length) {
+    //         registerFormSelect("school_id", 0)
+    //     }
+    // }, [defferedSearchSchoolsValue])
+
+     useEffect(() => {
+    dispatch(resetSchoolPagination())
+    
+    if (formik.values.school && !defferedSearchSchoolsValue.length) {
+        registerFormSelect("school", "")
+    }
+
+    if (formik.values.city_id) {
+        fetchSchools() 
+    }
+}, [defferedSearchSchoolsValue, formik.values.city_id])
 
     return (
         <form autoComplete={"off"} onSubmit={formik.handleSubmit} action="" className={styles.form}>
@@ -161,11 +220,24 @@ export const RegisterForm = () => {
                     selectedValue={formik.values.city_id}
                     onChange={(value, label) => onCitySelect(value, label)}
                 />
-                <InputField<UserRegisterFormKeys>
-                    placeholder={"Введи название твоей школы"}
-                    name={"school"}
-                    value={formik.values.school}
-                    onChange={formik.handleChange}
+                <SelectField
+                    className={styles.ageSelect}
+                    placeholder={"Выбери свою школу"}
+                    htmlId={"register-school-input"}
+                    options={getSelectOptions(schools.items, "id", "name")}
+                    asyncOptions={{
+                        is_loading: schools.statuses.loading,
+                        is_pag_loading: schools.pagination.loading,
+                        part: schools.pagination.part,
+                        disableObserving: schools.pagination.is_out,
+                        limit: schools.pagination.limit,
+                        onLoad: fetchSchools,
+                    }}
+                    onSearch={(e) => setSearchSchoolsValue(e.target.value)}
+                    value={searchSchoolsValue}
+                    selectedValue={getSelectOptions(schools.items, "id", "name").find(opt => opt.label === formik.values.school)?.value || 0}
+                    onChange={(value, label) => onSchoolSelect(value, label)}
+                    disabled={!formik.values.city_id}
                 />
             </FieldsGroup>
             <div className={styles.bottom}>

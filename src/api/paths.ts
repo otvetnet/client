@@ -3,7 +3,10 @@ export const API_PATHS = {
     REGISTER: "/users",
 
     // Города
-    GET_CITIES: "/cities",
+    GET_CITIES: "/cities/",
+
+    // Школы
+    GET_SCHOOLS: "/schools",
 
     // Опросы
     GET_SURVEYS: "/surveys",

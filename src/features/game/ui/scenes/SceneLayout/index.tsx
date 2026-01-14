@@ -10,6 +10,7 @@ import { useAppDispatch, useAppSelector } from '../../../../../store/hooks'
 import { GameMatchesScene } from '../GameMatchesScene'
 import { useAudio } from '../../../../audio/AudioProvider'
 import { CONFIG } from '../../../../../config'
+import achievementAudioFile from '../../../../../assets/audio/Achievement.mp3';
 
 type SceneLayoutProps = {
     scene: Scene
@@ -21,6 +22,8 @@ export const SceneLayout: FC<SceneLayoutProps> = ({ scene }) => {
     const { current_scene_animated } = useAppSelector(state => state.game)
     const { play, pause, loadTrack, onAudioEnd, setVolume } = useAudio()
 
+    const achievementAudioId = 'Achievement';
+
     const [currentVoiceId, setCurrentVoiceId] = useState<string | null>(null)
     const [currentDialogIndex, setCurrentDialogIndex] = useState(0)
     const [isPlaying, setIsPlaying] = useState(false)
@@ -28,10 +31,41 @@ export const SceneLayout: FC<SceneLayoutProps> = ({ scene }) => {
     const currentSceneIsDialog = scene.type == "dialogue"
     const dialogues = scene.payload.dialogues || []
 
+    // Воспроизведение звука ачивки при показе карточки достижения (один диалог)
+    // useEffect(() => {
+    //     if (
+    //         currentSceneIsDialog &&
+    //         dialogues.length === 1 &&
+    //         scene.payload.achievement &&
+    //         !isPlaying
+    //     ) {
+    //         loadTrack(achievementAudioId, achievementAudioFile);
+    //         if (!audio_muted) {
+    //             play(achievementAudioId);
+    //         } else {
+    //             pause(achievementAudioId);
+    //         }
+    //     }
+    //     return () => {
+    //         pause(achievementAudioId);
+    //     };
+    // }, [currentSceneIsDialog, dialogues.length, scene.payload.achievement, isPlaying, audio_muted]);
+
     const playNextDialogAudio = () => {
         setIsPlaying(false)
         if (currentDialogIndex < dialogues.length - 1) {
-            setCurrentDialogIndex(prev => prev + 1)
+            setCurrentDialogIndex(prev => prev + 1);
+        } 
+        else {
+            if (scene.payload.achievement && dialogues.length === 1) {
+                loadTrack(achievementAudioId, achievementAudioFile);
+                if (!audio_muted) {
+                    play(achievementAudioId);
+                } 
+                else {
+                    pause(achievementAudioId);
+                }
+            }
         }
     }
 
@@ -44,6 +78,15 @@ export const SceneLayout: FC<SceneLayoutProps> = ({ scene }) => {
         }
 
         if (currentSceneIsDialog && (dialogues.length > 1) && scene.payload.achievement) {
+            // Воспроизведение звука ачивки
+            if (achievementAudioFile) {
+                loadTrack(achievementAudioId, achievementAudioFile);
+                if (!audio_muted) {
+                    play(achievementAudioId);
+                } else {
+                    pause(achievementAudioId);
+                }
+            }
             dispatch(setAchievementData(scene.payload.achievement))
             dispatch(setIsOpenAchievement(true))
             return
@@ -54,20 +97,25 @@ export const SceneLayout: FC<SceneLayoutProps> = ({ scene }) => {
             return
         }
 
+        setCurrentDialogIndex(0)
         dispatch(setCurrentSceneById(scene.payload.next_scene_id!))
     }
 
     const renderScene = () => {
         if (currentSceneIsDialog && dialogues.length) {
             if (dialogues.length > 1) {
-                return dialogues.map((dialog, index) => (
-                    <GameSceneCard
-                        key={`${scene.id}_${index}`}
-                        scene_id={scene.id}
-                        dialog={dialog}
-                        delayShow={index == currentDialogIndex ? 0.5 : CONFIG.SCENE_DIALOG_CHANGE_DELAY / 1000}
-                    />
-                ))
+                return (
+                    <>
+                        {dialogues.slice(0, currentDialogIndex + 1).map((dialog, index) => (
+                            <GameSceneCard
+                                key={`${scene.id}_${index}`}
+                                scene_id={scene.id}
+                                dialog={dialog}
+                                delayShow={index === currentDialogIndex ? 0.5 : CONFIG.SCENE_DIALOG_CHANGE_DELAY / 1000}
+                            />
+                        ))}
+                    </>
+                )
             }
             if (dialogues.length == 1) {
                 return (
@@ -76,11 +124,13 @@ export const SceneLayout: FC<SceneLayoutProps> = ({ scene }) => {
                             scene_id={scene.id}
                             dialog={dialogues[0]}
                         />
-                        <GameSceneCard
-                            scene_id={scene.id}
-                            achievement={scene.payload.achievement}
-                            delayShow={CONFIG.SCENE_DIALOG_CHANGE_DELAY / 1000}
-                        />
+                        {!isPlaying && (
+                            <GameSceneCard
+                                scene_id={scene.id}
+                                achievement={scene.payload.achievement}
+                                delayShow={CONFIG.SCENE_DIALOG_CHANGE_DELAY / 5000}
+                            />
+                        )}
                     </>
                 )
             }
@@ -175,7 +225,7 @@ export const SceneLayout: FC<SceneLayoutProps> = ({ scene }) => {
                 <aside className={styles.sceneControls}>
                     <ControlButton
                         classNames={{ button: styles.nextSceneButton }}
-                        disabled={!current_scene_animated || isPlaying || (!currentDialogIndex && dialogues.length > 1 && Boolean(dialogues[1].voice))}
+                            disabled={!CONFIG.USE_DEBUG && (!current_scene_animated || isPlaying || (!currentDialogIndex && dialogues.length > 1 && Boolean(dialogues[1].voice)))}
                         onClick={handleNextScene}>
                         Далее
                         <img src={arrowRightIcon} height={18} width={18} alt="" />

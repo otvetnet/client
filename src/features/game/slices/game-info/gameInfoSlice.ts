@@ -4,16 +4,27 @@ import { FinishGameReq, FinishGameRes, GetGameInfoByIdReq, GetGameInfoByIdRes } 
 import { Game, GameAchievement, Scene } from '../../../../types/entities'
 import { GameApi } from '../../api/game.api'
 import { AxiosResponse } from 'axios'
-import { mockGame } from '../../utils/mock-data/gameMockData'
+import { mockGame as mockGame1 } from '../../utils/mock-data/gameMockData_1' // 1 игра 
+import { mockGame as mockGame2 } from '../../utils/mock-data/gameMockData_3' // 2 игра
+import { mockGame as mockGame3 } from '../../utils/mock-data/gameMockData_4' // 3 игра
+import { mockGame as mockGame4 } from '../../utils/mock-data/gameMockData_2' // 4 игра
+import { mockGame as mockGame5 } from '../../utils/mock-data/gameMockData_5' // 5 игра
 import { CONFIG } from '../../../../config'
 
 export const getGameInfoById = createAsyncThunk(
     'game/get-by-id',
     async (req: GetGameInfoByIdReq) => {
         if (CONFIG.USE_MOCK_API) {
+            const mockGames: Record<number, GetGameInfoByIdRes> = {
+                [mockGame1.id]: mockGame1,
+                [mockGame2.id]: mockGame2,
+                [mockGame3.id]: mockGame3,
+                [mockGame4.id]: mockGame4,
+                [mockGame5.id]: mockGame5,
+            };
             return new Promise<GetGameInfoByIdRes>((rs, _) => {
                 setTimeout(() => {
-                    rs(mockGame)
+                    rs(mockGames[req.id] || mockGame1)
                 }, CONFIG.MOCK_FETCH_DELAY)
             })
         }
@@ -84,14 +95,32 @@ export const gameInfoSlice = createSlice({
         setGameIsInProgress: (state, action: PayloadAction<boolean>) => {
             state.game_is_in_progress = action.payload
         },
+        resetGameInProgress: (state) => {
+            state.game_is_in_progress = false;
+        },
         finishGame: (state) => {
             const { id, title, cover_image } = state.data
+
+            // Determine game_group_id: prefer explicit field on loaded data,
+            // otherwise, when in mock mode, try to read it from known mock games.
+            let groupId = (state.data as any).game_group_id;
+            if (!groupId && CONFIG.USE_MOCK_API) {
+                const mockMap: Record<number, number> = {
+                    [mockGame1.id]: (mockGame1 as any).game_group_id || 0,
+                    [mockGame2.id]: (mockGame2 as any).game_group_id || 0,
+                    [mockGame3.id]: (mockGame3 as any).game_group_id || 0,
+                    [mockGame4.id]: (mockGame4 as any).game_group_id || 0,
+                    [mockGame5.id]: (mockGame5 as any).game_group_id || 0,
+                };
+                groupId = mockMap[id] || 0;
+            }
 
             state.passed_game = {
                 id,
                 title,
                 cover_image,
-                sertificate_url: ""
+                sertificate_url: "",
+                game_group_id: groupId || 0
             }
         }
     },
@@ -108,9 +137,9 @@ export const gameInfoSlice = createSlice({
                 state.statuses.loading = false
                 state.statuses.success = true
             })
-            .addCase(getGameInfoById.rejected, state => {
-                state.statuses.loading = false
-                state.statuses.error = ""
+            .addCase(getGameInfoById.rejected, (state, action) => {
+                state.statuses.loading = false;
+                state.statuses.error = action.error?.message || "Ошибка загрузки игры";
             })
 
             // SEND GAME
@@ -121,7 +150,8 @@ export const gameInfoSlice = createSlice({
             .addCase(sendFinishGame.fulfilled, (state, action: PayloadAction<Pick<Game, "id" | "cover_image" | "title">>) => {
                 state.passed_game = {
                     ...action.payload,
-                    sertificate_url: ""
+                    sertificate_url: "",
+                    game_group_id: (state.data as any).game_group_id || 0
                 }
                 state.sending_statuses.loading = false
                 state.sending_statuses.success = true
@@ -140,6 +170,8 @@ export const {
     resetAchievementData,
     addToVisitedScenes,
     setGameIsInProgress,
+    resetGameInProgress,
+    resetPassedGameData,
     setIsOpenAchievement,
     setCurrentSceneAnimated,
     finishGame
