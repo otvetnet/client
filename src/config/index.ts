@@ -1,0 +1,15 @@
+export const CONFIG = {
+<<<<<<< HEAD
+    USE_MOCK_API: !false,
+=======
+    USE_MOCK_API: false,
+    USE_DEBUG: true,
+>>>>>>> dbc8afef8ddb1aba765596b38fe3a2c2dcf9f401
+    MOCK_FETCH_DELAY: 500,
+    AUTH_CHECK_ENABLED: true,
+    VISUAL_IMPAIRED_VALUE: 1.2,
+    AUDIO_DIALOG_VOLUME: 0.7,
+    AUDIO_BACKGROUND_VOLUME: 0.15,
+    SUBTITLES_AUDIO_DELAY: 950,
+    SCENE_DIALOG_CHANGE_DELAY: 2200
+}

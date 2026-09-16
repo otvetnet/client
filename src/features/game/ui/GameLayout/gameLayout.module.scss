@@ -1,0 +1,25 @@
+.gameLayout {
+    width: 100%;
+    flex-grow: 1;
+    height: 100%;
+
+    .gameSettingsBar {
+        position: absolute;
+        left: var(--screen-padding);
+        top: 100px;
+        translate: -30%;
+        z-index: var(--z-index-control);
+        display: flex;
+        flex-direction: column;
+        row-gap: 10px;
+        svg {
+            height: 22px;
+            width: 22px;
+        }
+        svg path {
+            stroke: currentColor;
+            //stroke: white;
+        }
+    }
+    
+}
